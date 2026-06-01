@@ -4,10 +4,8 @@ import io
 import requests # FMP
 from dotenv import load_dotenv
 from strands import Agent, tool
-from strands.models import BedrockModel
 from strands_tools import retrieve
 from tavily import TavilyClient
-import setting
 
 STOCK_AGENT_PROMPT = """
 당신은 GenFinance 아키텍처를 따르는 한국어 주식 투자 분석 Agent입니다.
