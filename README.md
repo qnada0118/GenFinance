@@ -42,6 +42,14 @@ CLI 실행:
 python stock_agent.py
 ```
 
+## 테스트
+
+외부 API와 AWS를 호출하지 않는 단위 테스트를 실행합니다.
+
+```bash
+python3 -m unittest discover -s tests
+```
+
 ## 환경 변수
 
 프로젝트 루트에 `.env` 파일을 만들고 아래 값을 설정합니다.

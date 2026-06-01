@@ -4,9 +4,7 @@ from dotenv import load_dotenv
 import uuid
 import re
 
-from strands import Agent
-from strands_tools import retrieve
-from stock_agent import STOCK_AGENT_PROMPT, tavily_search, fmp_get_stock_data, get_stock_info
+from stock_agent import create_stock_agent
 from chat_style import apply_styles 
 
 
@@ -46,11 +44,7 @@ if "pending_user_input" not in st.session_state:
 # Agent 생성
 # -------------------------------------------
 if "stock_agent" not in st.session_state:
-    st.session_state["stock_agent"] = Agent(
-        model="us.amazon.nova-lite-v1:0",
-        system_prompt=STOCK_AGENT_PROMPT,
-        tools=[retrieve, tavily_search, fmp_get_stock_data, get_stock_info],
-    )
+    st.session_state["stock_agent"] = create_stock_agent()
 
 # -------------------------------------------
 # 메인 타이틀 + 대화 제목 (최상단 고정)

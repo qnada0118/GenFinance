@@ -183,6 +183,20 @@ def fmp_get_stock_data(ticker: str, data_type: str) -> str:
         return f"FMP API 응답 처리 중 오류 발생: {e}"
 
 
+def get_agent_tools():
+    """Return the shared tool list for CLI, Streamlit, and tests."""
+    return [retrieve, tavily_search, fmp_get_stock_data, get_stock_info]
+
+
+def create_stock_agent():
+    """Create the stock investment advisor Agent with the shared configuration."""
+    return Agent(
+        model="us.amazon.nova-lite-v1:0",
+        system_prompt=STOCK_AGENT_PROMPT,
+        tools=get_agent_tools()
+    )
+
+
 def safe_input(prompt: str) -> str:
     """UTF-8 인코딩 오류를 안전하게 처리하는 input 함수."""
     try:
@@ -229,11 +243,7 @@ def main():
         print("⚠️ 경고: FMP_API_KEY가 .env 파일에 설정되지 않았습니다.")
         print("실시간 주가/재무 정보 검색 기능이 제한될 수 있습니다.\n")
 
-    stock_agent = Agent(
-        model="us.amazon.nova-lite-v1:0",
-        system_prompt=STOCK_AGENT_PROMPT,
-        tools=[retrieve, tavily_search, fmp_get_stock_data, get_stock_info]
-    )
+    stock_agent = create_stock_agent()
     
     '''
     # Command line argument이 있으면 한 번만 실행하고 종료
