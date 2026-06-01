@@ -82,6 +82,7 @@ def install_streamlit_stub():
 
     sidebar = types.SimpleNamespace(
         header=lambda *args, **kwargs: None,
+        markdown=lambda *args, **kwargs: None,
         button=lambda *args, **kwargs: False,
     )
     streamlit.sidebar = sidebar

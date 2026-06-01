@@ -10,7 +10,11 @@ from genfinance.env import load_app_env
 from ui.chat_style import apply_styles
 
 
-st.set_page_config(page_title="Chat Demo", page_icon="💬")
+DEFAULT_CHAT_TITLE = "새 대화"
+UNTITLED_CHAT_TITLE = "제목 없는 대화"
+
+
+st.set_page_config(page_title="GenFinance", page_icon="💬")
 load_app_env()
 apply_styles()
 
@@ -58,43 +62,137 @@ def render_user_message(content: str) -> None:
     )
 
 
-# -------------------------------------------
-# 초기 세션 상태 생성
-# -------------------------------------------
-
-# 전체 저장된 대화 세션
-if "chat_sessions" not in st.session_state:
-    st.session_state["chat_sessions"] = {} 
-
-# 현재 활성 세션 ID
-if "current_session" not in st.session_state:
-    new_id = str(uuid.uuid4())[:8]
-    st.session_state["current_session"] = new_id
-    st.session_state["chat_sessions"][new_id] = {
-        "title": "새 대화",
-        "messages": []
+def create_chat_session(title=None) -> dict:
+    return {
+        "title": title or DEFAULT_CHAT_TITLE,
+        "messages": [],
     }
+
+
+def reset_pending_response() -> None:
+    st.session_state["awaiting_response"] = False
+    st.session_state["pending_user_input"] = None
+
+
+def start_new_chat() -> None:
+    new_id = str(uuid.uuid4())[:8]
+    chat_count = len(st.session_state["chat_sessions"])
+    st.session_state["chat_sessions"][new_id] = create_chat_session(
+        title=f"{DEFAULT_CHAT_TITLE} {chat_count}"
+    )
+    st.session_state["current_session"] = new_id
+    reset_pending_response()
+    st.rerun()
+
+
+def switch_chat(session_id: str) -> None:
+    st.session_state["current_session"] = session_id
+    reset_pending_response()
+    st.rerun()
+
+
+def get_display_title(chat: dict) -> str:
+    return chat["title"].strip() or UNTITLED_CHAT_TITLE
+
+
+def format_chat_button_label(chat: dict) -> str:
+    return f"{get_display_title(chat)} ({len(chat['messages'])})"
+
+
+def initialize_session_state() -> None:
+    if "chat_sessions" not in st.session_state:
+        st.session_state["chat_sessions"] = {}
+
+    if "current_session" not in st.session_state:
+        new_id = str(uuid.uuid4())[:8]
+        st.session_state["current_session"] = new_id
+        st.session_state["chat_sessions"][new_id] = create_chat_session()
+
+    if "awaiting_response" not in st.session_state:
+        st.session_state["awaiting_response"] = False
+
+    if "pending_user_input" not in st.session_state:
+        st.session_state["pending_user_input"] = None
+
+    if "stock_agent" not in st.session_state:
+        st.session_state["stock_agent"] = create_stock_agent()
+
+
+def render_app_header() -> None:
+    st.markdown(
+        """
+        <div class="app-hero">
+            <p class="app-kicker">AI Stock Research Assistant</p>
+            <h1>GenFinance</h1>
+            <p class="app-subtitle">시장 데이터, 뉴스, 리서치 근거를 함께 보는 주식 투자 어드바이저</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_sidebar(current_id: str, current_chat: dict) -> None:
+    st.sidebar.markdown(
+        """
+        <div class="sidebar-brand">
+            <div class="sidebar-logo">GF</div>
+            <div>
+                <div class="sidebar-title">GenFinance</div>
+                <div class="sidebar-caption">Investment chats</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.sidebar.markdown(
+        '<div class="sidebar-section-title">채팅방</div>',
+        unsafe_allow_html=True,
+    )
+
+    for session_id, chat in st.session_state["chat_sessions"].items():
+        if st.sidebar.button(
+            format_chat_button_label(chat),
+            key=session_id,
+            use_container_width=True,
+            disabled=session_id == current_id,
+        ):
+            switch_chat(session_id)
+
+    st.sidebar.markdown('<div class="sidebar-new-chat">', unsafe_allow_html=True)
+    if st.sidebar.button("새 대화 시작", use_container_width=True):
+        start_new_chat()
+    st.sidebar.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_messages(chat: dict) -> None:
+    for message in chat["messages"]:
+        if message["role"] == "user":
+            render_user_message(message["content"])
+        else:
+            with st.chat_message("assistant"):
+                st.markdown(message["content"])
+
+
+def extract_agent_reply(result) -> str:
+    if hasattr(result, "final_output") and isinstance(result.final_output, str):
+        return result.final_output
+    return str(result)
+
+
+def append_message(chat: dict, role: str, content: str) -> None:
+    chat["messages"].append({"role": role, "content": content})
+
+
+initialize_session_state()
 
 current_id = st.session_state["current_session"]
 current_chat = st.session_state["chat_sessions"][current_id]
 
-# 답변 대기 상태 관련 플래그
-if "awaiting_response" not in st.session_state:
-    st.session_state["awaiting_response"] = False
-
-if "pending_user_input" not in st.session_state:
-    st.session_state["pending_user_input"] = None
-
-# -------------------------------------------
-# Agent 생성
-# -------------------------------------------
-if "stock_agent" not in st.session_state:
-    st.session_state["stock_agent"] = create_stock_agent()
-
 # -------------------------------------------
 # 메인 타이틀 + 대화 제목 (최상단 고정)
 # -------------------------------------------
-st.title("Chat with 주식 투자 어드바이저")
+render_app_header()
 
 current_title = st.text_input(
     "대화 제목",
@@ -109,40 +207,13 @@ chat_container = st.container()
 # -------------------------------------------
 # Sidebar: 이전 대화 목록
 # -------------------------------------------
-st.sidebar.header("이전 대화")
-
-for sid, data in st.session_state["chat_sessions"].items():
-    if st.sidebar.button(data["title"], key=sid, use_container_width=True):
-        st.session_state["current_session"] = sid
-        st.session_state["awaiting_response"] = False
-        st.session_state["pending_user_input"] = None
-        st.rerun()
-
-if st.sidebar.button("➕ 새 대화 시작", use_container_width=True):
-    new_id = str(uuid.uuid4())[:8]
-    st.session_state["chat_sessions"][new_id] = {
-        "title": f"새 대화 {len(st.session_state['chat_sessions'])}",
-        "messages": []
-    }
-    st.session_state["current_session"] = new_id
-    st.session_state["awaiting_response"] = False
-    st.session_state["pending_user_input"] = None
-    st.rerun()
+render_sidebar(current_id, current_chat)
 
 # -------------------------------------------
 # 1) 항상: 지금까지 메시지 한 번만 렌더
 # -------------------------------------------
 with chat_container:
-    for msg in current_chat["messages"]:
-        role = msg["role"]
-
-        if role == "user":
-            render_user_message(msg["content"])
-        else:
-            with st.chat_message("assistant"):
-                st.markdown(msg["content"])
-
-
+    render_messages(current_chat)
 
 # -------------------------------------------
 # 2) 상태에 따라 분기
@@ -156,9 +227,7 @@ if not st.session_state["awaiting_response"]:
         log_to_terminal("사용자 입력", user_input)
         log_to_terminal("처리 기준 요약", summarize_reasoning_path(user_input))
 
-        current_chat["messages"].append(
-            {"role": "user", "content": user_input}
-        )
+        append_message(current_chat, "user", user_input)
         st.session_state["chat_sessions"][current_id] = current_chat
 
         st.session_state["pending_user_input"] = user_input
@@ -177,12 +246,7 @@ else:
                     try:
                         agent = st.session_state["stock_agent"]
                         result = agent(build_turn_prompt(pending))  # AgentResult 객체
-
-                        if hasattr(result, "final_output") and isinstance(result.final_output, str):
-                            raw_reply = result.final_output
-                        else:
-                            raw_reply = str(result)
-
+                        raw_reply = extract_agent_reply(result)
                         bot_reply = clean_agent_reply(raw_reply)
 
                     except Exception as e:
@@ -192,9 +256,7 @@ else:
                     st.markdown(bot_reply)
 
         # assistant 메시지 state에 추가
-        current_chat["messages"].append(
-            {"role": "assistant", "content": bot_reply}
-        )
+        append_message(current_chat, "assistant", bot_reply)
         st.session_state["chat_sessions"][current_id] = current_chat
 
     st.session_state["pending_user_input"] = None

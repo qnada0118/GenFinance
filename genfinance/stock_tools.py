@@ -31,6 +31,47 @@ KRX_MARKET_SUFFIX = {
     "KONEX": ".KN",
 }
 
+FMP_DATA_LABELS = {
+    "historical_price": "과거 주가 데이터",
+    "market_cap": "시가총액 데이터",
+    "enterprise_value": "기업가치 데이터",
+    "ratios": "재무지표 데이터",
+    "key_metrics": "재무지표 데이터",
+    "financials": "재무제표 데이터",
+    "income_statement": "재무제표 데이터",
+    "balance_sheet": "재무제표 데이터",
+    "cash_flow": "재무제표 데이터",
+}
+
+FMP_PROFILE_TYPES = {"price", "quote", "profile"}
+
+
+def _format_fmp_source(path: str) -> str:
+    return f"FMP Stable/{path}"
+
+
+def _format_profile_response(profile_data: dict, symbol: str) -> str:
+    description = profile_data.get("description", "N/A")
+    return (
+        f"기업 프로필 및 주가 정보 (출처: {_format_fmp_source('profile')}):\n"
+        f"기업명: {profile_data.get('companyName', 'N/A')}\n"
+        f"티커: {profile_data.get('symbol', symbol)}\n"
+        f"현재 주가: {profile_data.get('price', 'N/A')}\n"
+        f"산업: {profile_data.get('industry', 'N/A')}\n"
+        f"설명 요약: {description[:200]}..."
+    )
+
+
+def _format_fmp_response(data_type: str, path: str, data, symbol: str):
+    if data_type in FMP_PROFILE_TYPES and isinstance(data, list):
+        return _format_profile_response(data[0], symbol)
+
+    label = FMP_DATA_LABELS.get(data_type)
+    if label:
+        return f"{label} (출처: {_format_fmp_source(path)}):\n{data}"
+
+    return str(data[0]) if isinstance(data, list) and len(data) > 0 else str(data)
+
 
 def _iter_stock_master_files():
     stock_master_dir = Path(__file__).resolve().parents[1] / "docs" / "s3" / "raw" / "krx" / "stock-master"
@@ -162,33 +203,7 @@ def fmp_get_stock_data(ticker: str, data_type: str) -> str:
         if not data or (isinstance(data, list) and len(data) == 0):
             return f"FMP API에서 티커 {ticker}({symbol})에 대한 정보를 찾을 수 없습니다."
 
-        if data_type in ["price", "quote", "profile"] and isinstance(data, list):
-            profile_data = data[0]
-            return (
-                f"기업 프로필 및 주가 정보 (출처: FMP Stable/profile):\n"
-                f"기업명: {profile_data.get('companyName', 'N/A')}\n"
-                f"티커: {profile_data.get('symbol', symbol)}\n"
-                f"현재 주가: {profile_data.get('price', 'N/A')}\n"
-                f"산업: {profile_data.get('industry', 'N/A')}\n"
-                f"설명 요약: {profile_data.get('description', 'N/A')[:200]}..."
-            )
-
-        if data_type == "historical_price":
-            return f"과거 주가 데이터 (출처: FMP Stable/{path}):\n{data}"
-
-        if data_type == "market_cap":
-            return f"시가총액 데이터 (출처: FMP Stable/{path}):\n{data}"
-
-        if data_type == "enterprise_value":
-            return f"기업가치 데이터 (출처: FMP Stable/{path}):\n{data}"
-
-        if data_type in ["ratios", "key_metrics"]:
-            return f"재무지표 데이터 (출처: FMP Stable/{path}):\n{data}"
-
-        if data_type in ["financials", "income_statement", "balance_sheet", "cash_flow"]:
-            return f"재무제표 데이터 (출처: FMP Stable/{path}):\n{data}"
-
-        return str(data[0]) if isinstance(data, list) and len(data) > 0 else str(data)
+        return _format_fmp_response(data_type, path, data, symbol)
 
     except requests.exceptions.HTTPError as e:
         status = e.response.status_code
