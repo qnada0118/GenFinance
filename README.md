@@ -122,14 +122,13 @@ streamlit run chat_app.py
 python stock_agent.py
 ```
 
-
 ```text
 종료
 exit
 quit
 q
 ```
-<br><br>
+<br>
 
 ## 테스트
 
@@ -138,7 +137,7 @@ q
 ```bash
 python3 -m unittest discover -s tests
 ```
-<br><br>
+<br>
 
 ## Agent 도구
 
